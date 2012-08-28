@@ -1,3 +1,5 @@
+# much of the code here is lifted from https://github.com/igrigorik/em-websocket/blob/master/lib/em-websocket/connection.rb
+
 require "thin-em-websocket/version"
 require "em-websocket"
 
