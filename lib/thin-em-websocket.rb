@@ -44,6 +44,16 @@ class Thin::EM::Websocket::Connection
 
   def initialize(connection)
     @connection = connection
+    @logger = Class.new do 
+      def error(m); end
+      def warn(m); end
+      def debug(m); end
+      def info(m); end
+    end.new
+  end
+
+  def logger=(logger)
+    @logger = logger
   end
 
   def websocket?
@@ -54,6 +64,10 @@ class Thin::EM::Websocket::Connection
     raise ::Thin::EM::Websocket::AlreadyUpgradedSocketError.new if @handler
     @handler = EM::WebSocket::HandlerFactory.build(self, @connection.ws_buffer, false, nil) 
     @handler.run
+  end
+
+  def upgraded?
+    !@handler.nil?
   end
 
   # Cache encodings since it's moderately expensive to look them up each time
@@ -68,12 +82,15 @@ class Thin::EM::Websocket::Connection
 
   def receive_data(data)
     begin 
+      @logger.info("Got Socket Data (l: #{data.length})")
       @handler.receive_data(data)
-    rescue HandshakeError => e
+    rescue EventMachine::WebSocket::HandshakeError => e
+      @logger.warn("Web Socket Failed to handshake")
       trigger_on_error(e)
       # Errors during the handshake require the connection to be aborted
       abort
-    rescue WSProtocolError => e
+    rescue EventMachine::WebSocket::WSProtocolError => e
+      @logger.warn("Web Socket Protocol Error")
       trigger_on_error(e)
       close_websocket_private(e.code)
     rescue => e
@@ -209,7 +226,7 @@ class Thin::Connection
   end
   
   def receive_data(data)
-    if @socket_connection
+    if @socket_connection && @socket_connection.upgraded?
       @socket_connection.receive_data(data)
     else 
       @ws_buffer ||= ""
