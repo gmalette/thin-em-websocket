@@ -215,6 +215,10 @@ class Thin::EM::Websocket::Connection
     @max_frame_size || EventMachine::WebSocket.max_frame_size
   end
 
+  def close_connection_after_writing()
+    @connection.close_connection_after_writing()
+  end
+
   private
 
   # As definited in draft 06 7.2.2, some failures require that the server
