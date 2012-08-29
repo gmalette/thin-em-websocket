@@ -6,7 +6,7 @@ require "em-websocket"
 module Thin
   module EM
     module Websocket
-      class AlreadyUpgradedSocketError < StandardError; end
+      # 
     end
   end
 end
@@ -63,13 +63,33 @@ class Thin::EM::Websocket::Connection
   end
 
   def upgrade_websocket
-    raise ::Thin::EM::Websocket::AlreadyUpgradedSocketError.new if @handler
+    return if @handler
     @handler = EM::WebSocket::HandlerFactory.build(self, @connection.ws_buffer, false, nil) 
-    @handler.run
+    unless @handler
+      # see: https://github.com/learnboost/socket.io/commit/9982232032771574ceb68e2bccee4e43fd5af887#diff-0
+      # hixie-76 behind HAProxy gets a bit messy, we need to send the header first to unblock the stream
+      if !@sent_upgrade && @connection.ws_buffer =~ /sec-websocket-key1/i
+        @logger.info("WebSocket: attempting hixie 76 hack")
+        
+        fake_buffer = @connection.ws_buffer.dup
+        fake_buffer << "12345678"
+        (header, remains) = fake_buffer.split("\r\n\r\n", 2)
+        fake_handler = EM::WebSocket::HandlerFactory.build(self, fake_buffer, false, nil) 
+        
+        @handshake_76_without_verify = fake_handler.handshake[0..-17]
+        send_data(@handshake_76_without_verify)
+        @sent_upgrade = true
+      end
+    end
+    @handler.run if @handler
   end
 
   def upgraded?
     !@handler.nil?
+  end
+
+  def pending_upgrade? 
+    @handler.nil? && @sent_upgrade
   end
 
   # Cache encodings since it's moderately expensive to look them up each time
@@ -79,6 +99,12 @@ class Thin::EM::Websocket::Connection
 
 
   def send_data(data)
+    if @sent_upgrade && !@upgrade_stripped
+      # strip it 
+      raise EventMachine::WebSocket::HandshakeError if @handshake_76_without_verify != data[0..@handshake_76_without_verify.length-1]
+      data = data[@handshake_76_without_verify.length..-1]
+      @upgrade_stripped = true
+    end
     @connection.send_data(data)
   end
 
@@ -219,7 +245,7 @@ class Thin::Connection
 
 
   def process
-    if websocket? 
+    if websocket? && !@request.env['em.connection']
       @socket_connection = Thin::EM::Websocket::Connection.new(self)
       @request.env['em.connection'] = @socket_connection
       @response.persistent!
@@ -234,6 +260,7 @@ class Thin::Connection
       @ws_buffer ||= ""
       @ws_buffer << data unless @ws_buffer == false
       @ws_buffer = false if @ws_buffer.length > 10000 # some sane cutoff so we dont have too much data in memory
+      @socket_connection.upgrade_websocket if @socket_connection && @socket_connection.pending_upgrade?
       thin_receive_data(data)
     end
     
