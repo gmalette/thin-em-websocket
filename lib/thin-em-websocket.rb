@@ -81,6 +81,7 @@ class Thin::EM::Websocket::Connection
         @sent_upgrade = true
       end
     end
+    @connection.set_comm_inactivity_timeout(0) if @handler
     @handler.run if @handler
   end
 
