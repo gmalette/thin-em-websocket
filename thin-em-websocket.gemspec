@@ -16,4 +16,6 @@ Gem::Specification.new do |gem|
   gem.version       = ThinEM::Websocket::VERSION
   gem.add_dependency('em-websocket', '>= 0.3.8')
   gem.add_dependency('thin', '>= 1.4.1')
+
+  gem.add_development_dependency('rake')
 end
