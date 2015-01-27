@@ -11,7 +11,7 @@ Gem::Specification.new do |gem|
   gem.files         = `git ls-files`.split($\)
   gem.executables   = gem.files.grep(%r{^bin/}).map{ |f| File.basename(f) }
   gem.test_files    = gem.files.grep(%r{^(test|spec|features)/})
-  gem.name          = "thin-em-websocket"
+  gem.name          = "thin-em-websocket-gmalette"
   gem.require_paths = ["lib"]
   gem.version       = ThinEM::Websocket::VERSION
   gem.add_dependency('em-websocket', '>= 0.3.8')
