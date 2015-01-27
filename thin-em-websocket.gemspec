@@ -13,7 +13,7 @@ Gem::Specification.new do |gem|
   gem.test_files    = gem.files.grep(%r{^(test|spec|features)/})
   gem.name          = "thin-em-websocket"
   gem.require_paths = ["lib"]
-  gem.version       = Thin::Em::Websocket::VERSION
+  gem.version       = ThinEM::Websocket::VERSION
   gem.add_dependency('em-websocket', '>= 0.3.8')
   gem.add_dependency('thin', '>= 1.4.1')
 end

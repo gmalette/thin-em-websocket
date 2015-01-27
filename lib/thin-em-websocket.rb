@@ -3,16 +3,13 @@
 require "thin-em-websocket/version"
 require "em-websocket"
 
-module Thin
-  module EM
-    module Websocket
-      # 
-    end
+module ThinEM
+  module Websocket
   end
 end
 
-# connection SHIM, so we only override minimal amounts of thin 
-class Thin::EM::Websocket::Connection
+# connection SHIM, so we only override minimal amounts of thin
+class ThinEM::Websocket::Connection
   attr_writer :max_frame_size
 
   # define WebSocket callbacks
@@ -46,7 +43,7 @@ class Thin::EM::Websocket::Connection
 
   def initialize(connection)
     @connection = connection
-    @logger = Class.new do 
+    @logger = Class.new do
       def error(m); end
       def warn(m); end
       def debug(m); end
@@ -64,18 +61,18 @@ class Thin::EM::Websocket::Connection
 
   def upgrade_websocket
     return if @handler
-    @handler = EM::WebSocket::HandlerFactory.build(self, @connection.ws_buffer, false, nil) 
+    @handler = EM::WebSocket::HandlerFactory.build(self, @connection.ws_buffer, false, nil)
     unless @handler
       # see: https://github.com/learnboost/socket.io/commit/9982232032771574ceb68e2bccee4e43fd5af887#diff-0
       # hixie-76 behind HAProxy gets a bit messy, we need to send the header first to unblock the stream
       if !@sent_upgrade && @connection.ws_buffer =~ /sec-websocket-key1/i
         @logger.info("WebSocket: attempting hixie 76 hack")
-        
+
         fake_buffer = @connection.ws_buffer.dup
         fake_buffer << "12345678"
         (header, remains) = fake_buffer.split("\r\n\r\n", 2)
-        fake_handler = EM::WebSocket::HandlerFactory.build(self, fake_buffer, false, nil) 
-        
+        fake_handler = EM::WebSocket::HandlerFactory.build(self, fake_buffer, false, nil)
+
         @handshake_76_without_verify = fake_handler.handshake[0..-17]
         send_data(@handshake_76_without_verify)
         @sent_upgrade = true
@@ -89,7 +86,7 @@ class Thin::EM::Websocket::Connection
     !@handler.nil?
   end
 
-  def pending_upgrade? 
+  def pending_upgrade?
     @handler.nil? && @sent_upgrade
   end
 
@@ -101,7 +98,7 @@ class Thin::EM::Websocket::Connection
 
   def send_data(data)
     if @sent_upgrade && !@upgrade_stripped
-      # strip it 
+      # strip it
       raise EventMachine::WebSocket::HandshakeError if @handshake_76_without_verify != data[0..@handshake_76_without_verify.length-1]
       data = data[@handshake_76_without_verify.length..-1]
       @upgrade_stripped = true
@@ -110,7 +107,7 @@ class Thin::EM::Websocket::Connection
   end
 
   def receive_data(data)
-    begin 
+    begin
       @logger.info("Got Socket Data (l: #{data.length})")
       @handler.receive_data(data)
     rescue EventMachine::WebSocket::HandshakeError => e
@@ -251,24 +248,24 @@ class Thin::Connection
 
   def process
     if websocket? && !@request.env['em.connection']
-      @socket_connection = Thin::EM::Websocket::Connection.new(self)
+      @socket_connection = ThinEM::Websocket::Connection.new(self)
       @request.env['em.connection'] = @socket_connection
       @response.persistent!
     end
     thin_process
   end
-  
+
   def receive_data(data)
     if @socket_connection && @socket_connection.upgraded?
       @socket_connection.receive_data(data)
-    else 
+    else
       @ws_buffer ||= ""
       @ws_buffer << data unless @ws_buffer == false
       @ws_buffer = false if @ws_buffer.length > 10000 # some sane cutoff so we dont have too much data in memory
       @socket_connection.upgrade_websocket if @socket_connection && @socket_connection.pending_upgrade?
       thin_receive_data(data)
     end
-    
+
   end
 
   def websocket?
