@@ -13,7 +13,14 @@ class ThinEM::Websocket::Connection
   attr_writer :max_frame_size
 
   # define WebSocket callbacks
-  def onopen(&blk);     @onopen = blk;    end
+  def onopen(&blk)
+    if @open
+      blk.call
+    else
+      @open = blk
+    end
+  end
+
   def onclose(&blk);    @onclose = blk;   end
   def onerror(&blk);    @onerror = blk;   end
   def onmessage(&blk);  @onmessage = blk; end
@@ -24,6 +31,7 @@ class ThinEM::Websocket::Connection
     @onmessage.call(msg) if @onmessage
   end
   def trigger_on_open
+    @open = true
     @onopen.call if @onopen
   end
   def trigger_on_close
